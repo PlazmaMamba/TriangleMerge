@@ -11,7 +11,7 @@ data class GameState(
     companion object {
         const val GRID_SIZE = 4 // Number of rows: [1], [3], [5], [7]
 
-        fun initial(): GameState {
+        fun initial(random: Random = Random): GameState {
             val grid = mutableListOf<MutableList<Int>>()
             for (row in 0 until GRID_SIZE) {
                 val rowSize = 2 * row + 1 // Row 0: 1, Row 1: 3, Row 2: 5, Row 3: 7
@@ -20,14 +20,14 @@ data class GameState(
 
             var newState = GameState(grid)
             // Spawn two initial tiles
-            newState = newState.spawnRandomTile()
-            newState = newState.spawnRandomTile()
+            newState = newState.spawnRandomTile(random)
+            newState = newState.spawnRandomTile(random)
 
             return newState
         }
     }
 
-    fun spawnRandomTile(): GameState {
+    fun spawnRandomTile(random: Random = Random): GameState {
         val emptyCells = mutableListOf<Pair<Int, Int>>()
 
         // Find all empty cells in the triangular grid
@@ -44,8 +44,8 @@ data class GameState(
         }
 
         // Pick random empty cell
-        val (row, col) = emptyCells.random()
-        val value = if (Random.nextFloat() < 0.9f) 2 else 4
+        val (row, col) = emptyCells.random(random)
+        val value = if (random.nextFloat() < 0.9f) 2 else 4
 
         // Create new grid with the spawned tile
         val newGrid = grid.map { it.toMutableList() }.toMutableList()
@@ -70,18 +70,18 @@ data class GameState(
 
         // Check if any moves are possible
         val testState = this
-        if (testState.slideLeft().grid != grid) return false
-        if (testState.slideRight().grid != grid) return false
-        if (testState.slideTopLeft().grid != grid) return false
-        if (testState.slideTopRight().grid != grid) return false
-        if (testState.slideBottomLeft().grid != grid) return false
-        if (testState.slideBottomRight().grid != grid) return false
+        if (testState.slideLeft(spawn = false).grid != grid) return false
+        if (testState.slideRight(spawn = false).grid != grid) return false
+        if (testState.slideTopLeft(spawn = false).grid != grid) return false
+        if (testState.slideTopRight(spawn = false).grid != grid) return false
+        if (testState.slideBottomLeft(spawn = false).grid != grid) return false
+        if (testState.slideBottomRight(spawn = false).grid != grid) return false
 
         return true
     }
 
     // Sliding functions for 6 directions
-    fun slideLeft(): GameState {
+    fun slideLeft(spawn: Boolean = true, random: Random = Random): GameState {
         var newScore = score
         val newGrid = grid.map { row ->
             val (slidRow, scoreGained) = slideRowLeft(row.toList())
@@ -90,13 +90,14 @@ data class GameState(
         }.toMutableList()
 
         return if (newGrid != grid) {
-            GameState(newGrid, newScore).spawnRandomTile()
+            val newState = GameState(newGrid, newScore)
+            if (spawn) newState.spawnRandomTile(random) else newState
         } else {
             this
         }
     }
 
-    fun slideRight(): GameState {
+    fun slideRight(spawn: Boolean = true, random: Random = Random): GameState {
         var newScore = score
         val newGrid = grid.map { row ->
             val (slidRow, scoreGained) = slideRowRight(row.toList())
@@ -105,13 +106,14 @@ data class GameState(
         }.toMutableList()
 
         return if (newGrid != grid) {
-            GameState(newGrid, newScore).spawnRandomTile()
+            val newState = GameState(newGrid, newScore)
+            if (spawn) newState.spawnRandomTile(random) else newState
         } else {
             this
         }
     }
 
-    fun slideTopLeft(): GameState {
+    fun slideTopLeft(spawn: Boolean = true, random: Random = Random): GameState {
         var newScore = score
         val newGrid = grid.map { it.toMutableList() }.toMutableList()
         var changed = false
@@ -140,13 +142,14 @@ data class GameState(
         }
 
         return if (changed) {
-            GameState(newGrid, newScore).spawnRandomTile()
+            val newState = GameState(newGrid, newScore)
+            if (spawn) newState.spawnRandomTile(random) else newState
         } else {
             this
         }
     }
 
-    fun slideTopRight(): GameState {
+    fun slideTopRight(spawn: Boolean = true, random: Random = Random): GameState {
         var newScore = score
         val newGrid = grid.map { it.toMutableList() }.toMutableList()
         var changed = false
@@ -175,13 +178,14 @@ data class GameState(
         }
 
         return if (changed) {
-            GameState(newGrid, newScore).spawnRandomTile()
+            val newState = GameState(newGrid, newScore)
+            if (spawn) newState.spawnRandomTile(random) else newState
         } else {
             this
         }
     }
 
-    fun slideBottomLeft(): GameState {
+    fun slideBottomLeft(spawn: Boolean = true, random: Random = Random): GameState {
         var newScore = score
         val newGrid = grid.map { it.toMutableList() }.toMutableList()
         var changed = false
@@ -210,13 +214,14 @@ data class GameState(
         }
 
         return if (changed) {
-            GameState(newGrid, newScore).spawnRandomTile()
+            val newState = GameState(newGrid, newScore)
+            if (spawn) newState.spawnRandomTile(random) else newState
         } else {
             this
         }
     }
 
-    fun slideBottomRight(): GameState {
+    fun slideBottomRight(spawn: Boolean = true, random: Random = Random): GameState {
         var newScore = score
         val newGrid = grid.map { it.toMutableList() }.toMutableList()
         var changed = false
@@ -245,7 +250,8 @@ data class GameState(
         }
 
         return if (changed) {
-            GameState(newGrid, newScore).spawnRandomTile()
+            val newState = GameState(newGrid, newScore)
+            if (spawn) newState.spawnRandomTile(random) else newState
         } else {
             this
         }
