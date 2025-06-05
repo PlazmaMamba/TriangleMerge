@@ -122,7 +122,7 @@ data class GameState(
             for (col in 0 until grid[row].size) {
                 if (!processed.contains(row to col)) {
                     val positions = extractDiagonalTopLeftPositions(row, col)
-                    if (positions.size > 1 && positions.none { it in processed }) {
+                    if (positions.size > 1) {
                         positions.forEach { processed.add(it) }
                         val diagonal = positions.map { (r, c) -> grid[r][c] }
                         val (slidDiagonal, scoreGained) = slideRowLeft(diagonal)
@@ -157,7 +157,7 @@ data class GameState(
             for (col in 0 until grid[row].size) {
                 if (!processed.contains(row to col)) {
                     val positions = extractDiagonalTopRightPositions(row, col)
-                    if (positions.size > 1 && positions.none { it in processed }) {
+                    if (positions.size > 1) {
                         positions.forEach { processed.add(it) }
                         val diagonal = positions.map { (r, c) -> grid[r][c] }
                         val (slidDiagonal, scoreGained) = slideRowRight(diagonal)
@@ -192,7 +192,7 @@ data class GameState(
             for (col in 0 until grid[row].size) {
                 if (!processed.contains(row to col)) {
                     val positions = extractDiagonalBottomLeftPositions(row, col)
-                    if (positions.size > 1 && positions.none { it in processed }) {
+                    if (positions.size > 1) {
                         positions.forEach { processed.add(it) }
                         val diagonal = positions.map { (r, c) -> grid[r][c] }
                         val (slidDiagonal, scoreGained) = slideRowLeft(diagonal)
@@ -227,7 +227,7 @@ data class GameState(
             for (col in 0 until grid[row].size) {
                 if (!processed.contains(row to col)) {
                     val positions = extractDiagonalBottomRightPositions(row, col)
-                    if (positions.size > 1 && positions.none { it in processed }) {
+                    if (positions.size > 1) {
                         positions.forEach { processed.add(it) }
                         val diagonal = positions.map { (r, c) -> grid[r][c] }
                         val (slidDiagonal, scoreGained) = slideRowRight(diagonal)
