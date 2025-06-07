@@ -1,10 +1,11 @@
 package com.example.trianglemerge.model
 
-import androidx.compose.ui.graphics.Color
 import kotlin.random.Random
 
 data class GameState(
-    val grid: List<MutableList<Int>>, // Triangular grid: [[1], [3], [5], [7]] - each row has 2*row+1 cells
+    val grid: List<MutableList<Int>>, // Main triangular grid
+    val gridB: List<MutableList<Int>>, // Grid B for vertical right swipes
+    val gridC: List<MutableList<Int>>, // Grid C for vertical left swipes
     val score: Int = 0,
     val isGameOver: Boolean = false
 ) {
@@ -12,13 +13,23 @@ data class GameState(
         const val GRID_SIZE = 4 // Number of rows: [1], [3], [5], [7]
 
         fun initial(): GameState {
+            // Create main grid
             val grid = mutableListOf<MutableList<Int>>()
             for (row in 0 until GRID_SIZE) {
                 val rowSize = 2 * row + 1 // Row 0: 1, Row 1: 3, Row 2: 5, Row 3: 7
                 grid.add(MutableList(rowSize) { 0 })
             }
 
-            var newState = GameState(grid)
+            // Create grids B and C with same structure
+            val gridB = mutableListOf<MutableList<Int>>()
+            val gridC = mutableListOf<MutableList<Int>>()
+            for (row in 0 until GRID_SIZE) {
+                val rowSize = 2 * row + 1
+                gridB.add(MutableList(rowSize) { 0 })
+                gridC.add(MutableList(rowSize) { 0 })
+            }
+
+            var newState = GameState(grid, gridB, gridC)
             // Spawn two initial tiles
             newState = newState.spawnRandomTile()
             newState = newState.spawnRandomTile()
@@ -30,7 +41,7 @@ data class GameState(
     fun spawnRandomTile(): GameState {
         val emptyCells = mutableListOf<Pair<Int, Int>>()
 
-        // Find all empty cells in the triangular grid
+        // Find all empty cells in the main grid
         for (row in grid.indices) {
             for (col in grid[row].indices) {
                 if (grid[row][col] == 0) {
@@ -47,18 +58,18 @@ data class GameState(
         val (row, col) = emptyCells.random()
         val value = if (Random.nextFloat() < 0.9f) 2 else 4
 
-        // Create new grid with the spawned tile
+        // Create new grids with the spawned tile
         val newGrid = grid.map { it.toMutableList() }.toMutableList()
         newGrid[row][col] = value
 
-        return this.copy(grid = newGrid, isGameOver = checkGameOver())
+        // Update grids B and C based on the new main grid
+        val newGridB = convertMainToB(newGrid)
+        val newGridC = convertMainToC(newGrid)
+
+        return this.copy(grid = newGrid, gridB = newGridB, gridC = newGridC, isGameOver = checkGameOver())
     }
 
-    fun isTriangleUpward(row: Int, col: Int): Boolean {
-        // In a triangular tessellation, triangles alternate
-        // Even columns are upward triangles, odd columns are downward
-        return col % 2 == 0
-    }
+    fun isTriangleUpward(row: Int, col: Int): Boolean = col % 2 == 0
 
     private fun checkGameOver(): Boolean {
         // Check if there are any empty cells
@@ -69,19 +80,18 @@ data class GameState(
         }
 
         // Check if any moves are possible
-        val testState = this
-        if (testState.slideLeft().grid != grid) return false
-        if (testState.slideRight().grid != grid) return false
-        if (testState.slideTopLeft().grid != grid) return false
-        if (testState.slideTopRight().grid != grid) return false
-        if (testState.slideBottomLeft().grid != grid) return false
-        if (testState.slideBottomRight().grid != grid) return false
+        if (slideLeft(false).grid != grid) return false
+        if (slideRight(false).grid != grid) return false
+        if (slideTopLeft(false).grid != grid) return false
+        if (slideTopRight(false).grid != grid) return false
+        if (slideBottomLeft(false).grid != grid) return false
+        if (slideBottomRight(false).grid != grid) return false
 
         return true
     }
 
     // Sliding functions for 6 directions
-    fun slideLeft(): GameState {
+    fun slideLeft(spawn: Boolean = true): GameState {
         var newScore = score
         val newGrid = grid.map { row ->
             val (slidRow, scoreGained) = slideRowLeft(row.toList())
@@ -90,13 +100,17 @@ data class GameState(
         }.toMutableList()
 
         return if (newGrid != grid) {
-            GameState(newGrid, newScore).spawnRandomTile()
+            // Update grids B and C based on the new main grid
+            val newGridB = convertMainToB(newGrid)
+            val newGridC = convertMainToC(newGrid)
+            val updated = GameState(newGrid, newGridB, newGridC, newScore)
+            if (spawn) updated.spawnRandomTile() else updated
         } else {
             this
         }
     }
 
-    fun slideRight(): GameState {
+    fun slideRight(spawn: Boolean = true): GameState {
         var newScore = score
         val newGrid = grid.map { row ->
             val (slidRow, scoreGained) = slideRowRight(row.toList())
@@ -105,147 +119,91 @@ data class GameState(
         }.toMutableList()
 
         return if (newGrid != grid) {
-            GameState(newGrid, newScore).spawnRandomTile()
+            // Update grids B and C based on the new main grid
+            val newGridB = convertMainToB(newGrid)
+            val newGridC = convertMainToC(newGrid)
+            val updated = GameState(newGrid, newGridB, newGridC, newScore)
+            if (spawn) updated.spawnRandomTile() else updated
         } else {
             this
         }
     }
 
-    fun slideTopLeft(): GameState {
+    fun slideTopLeft(spawn: Boolean = true): GameState {
         var newScore = score
-        val newGrid = grid.map { it.toMutableList() }.toMutableList()
-        var changed = false
-        val processed = mutableSetOf<Pair<Int, Int>>()
+        // Use grid C for top-left swipes (slide right on C)
+        val newGridC = gridC.map { row ->
+            val (slidRow, scoreGained) = slideRowRight(row.toList())
+            newScore += scoreGained
+            slidRow.toMutableList()
+        }.toMutableList()
 
-        // Process all diagonals going from top-left to bottom-right
-        for (row in 0 until GRID_SIZE) {
-            for (col in 0 until grid[row].size) {
-                if (!processed.contains(row to col)) {
-                    val positions = extractDiagonalTopLeftPositions(row, col)
-                    if (positions.size > 1) {
-                        positions.forEach { processed.add(it) }
-                        val diagonal = positions.map { (r, c) -> grid[r][c] }
-                        val (slidDiagonal, scoreGained) = slideRowLeft(diagonal)
-                        newScore += scoreGained
-                        if (slidDiagonal != diagonal) {
-                            changed = true
-                            for (i in positions.indices) {
-                                val (r, c) = positions[i]
-                                newGrid[r][c] = slidDiagonal[i]
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return if (changed) {
-            GameState(newGrid, newScore).spawnRandomTile()
+        return if (newGridC != gridC) {
+            // Convert back to main grid and update B
+            val newGrid = convertCToMain(newGridC)
+            val newGridB = convertMainToB(newGrid)
+            val updated = GameState(newGrid, newGridB, newGridC, newScore)
+            if (spawn) updated.spawnRandomTile() else updated
         } else {
             this
         }
     }
 
-    fun slideTopRight(): GameState {
+    fun slideTopRight(spawn: Boolean = true): GameState {
         var newScore = score
-        val newGrid = grid.map { it.toMutableList() }.toMutableList()
-        var changed = false
-        val processed = mutableSetOf<Pair<Int, Int>>()
+        // Use grid B for top-right swipes (slide left on B)
+        val newGridB = gridB.map { row ->
+            val (slidRow, scoreGained) = slideRowLeft(row.toList())
+            newScore += scoreGained
+            slidRow.toMutableList()
+        }.toMutableList()
 
-        // Process all diagonals going from top-right to bottom-left
-        for (row in 0 until GRID_SIZE) {
-            for (col in 0 until grid[row].size) {
-                if (!processed.contains(row to col)) {
-                    val positions = extractDiagonalTopRightPositions(row, col)
-                    if (positions.size > 1) {
-                        positions.forEach { processed.add(it) }
-                        val diagonal = positions.map { (r, c) -> grid[r][c] }
-                        val (slidDiagonal, scoreGained) = slideRowRight(diagonal)
-                        newScore += scoreGained
-                        if (slidDiagonal != diagonal) {
-                            changed = true
-                            for (i in positions.indices) {
-                                val (r, c) = positions[i]
-                                newGrid[r][c] = slidDiagonal[i]
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return if (changed) {
-            GameState(newGrid, newScore).spawnRandomTile()
+        return if (newGridB != gridB) {
+            // Convert back to main grid and update C
+            val newGrid = convertBToMain(newGridB)
+            val newGridC = convertMainToC(newGrid)
+            val updated = GameState(newGrid, newGridB, newGridC, newScore)
+            if (spawn) updated.spawnRandomTile() else updated
         } else {
             this
         }
     }
 
-    fun slideBottomLeft(): GameState {
+    fun slideBottomLeft(spawn: Boolean = true): GameState {
         var newScore = score
-        val newGrid = grid.map { it.toMutableList() }.toMutableList()
-        var changed = false
-        val processed = mutableSetOf<Pair<Int, Int>>()
+        // Use grid B for bottom-left swipes (slide right on B)
+        val newGridB = gridB.map { row ->
+            val (slidRow, scoreGained) = slideRowRight(row.toList())
+            newScore += scoreGained
+            slidRow.toMutableList()
+        }.toMutableList()
 
-        // Process all diagonals going from bottom-left to top-right
-        for (row in GRID_SIZE - 1 downTo 0) {
-            for (col in 0 until grid[row].size) {
-                if (!processed.contains(row to col)) {
-                    val positions = extractDiagonalBottomLeftPositions(row, col)
-                    if (positions.size > 1) {
-                        positions.forEach { processed.add(it) }
-                        val diagonal = positions.map { (r, c) -> grid[r][c] }
-                        val (slidDiagonal, scoreGained) = slideRowLeft(diagonal)
-                        newScore += scoreGained
-                        if (slidDiagonal != diagonal) {
-                            changed = true
-                            for (i in positions.indices) {
-                                val (r, c) = positions[i]
-                                newGrid[r][c] = slidDiagonal[i]
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return if (changed) {
-            GameState(newGrid, newScore).spawnRandomTile()
+        return if (newGridB != gridB) {
+            // Convert back to main grid and update C
+            val newGrid = convertBToMain(newGridB)
+            val newGridC = convertMainToC(newGrid)
+            val updated = GameState(newGrid, newGridB, newGridC, newScore)
+            if (spawn) updated.spawnRandomTile() else updated
         } else {
             this
         }
     }
 
-    fun slideBottomRight(): GameState {
+    fun slideBottomRight(spawn: Boolean = true): GameState {
         var newScore = score
-        val newGrid = grid.map { it.toMutableList() }.toMutableList()
-        var changed = false
-        val processed = mutableSetOf<Pair<Int, Int>>()
+        // Use grid C for bottom-right swipes (slide left on C)
+        val newGridC = gridC.map { row ->
+            val (slidRow, scoreGained) = slideRowLeft(row.toList())
+            newScore += scoreGained
+            slidRow.toMutableList()
+        }.toMutableList()
 
-        // Process all diagonals going from bottom-right to top-left
-        for (row in GRID_SIZE - 1 downTo 0) {
-            for (col in 0 until grid[row].size) {
-                if (!processed.contains(row to col)) {
-                    val positions = extractDiagonalBottomRightPositions(row, col)
-                    if (positions.size > 1) {
-                        positions.forEach { processed.add(it) }
-                        val diagonal = positions.map { (r, c) -> grid[r][c] }
-                        val (slidDiagonal, scoreGained) = slideRowRight(diagonal)
-                        newScore += scoreGained
-                        if (slidDiagonal != diagonal) {
-                            changed = true
-                            for (i in positions.indices) {
-                                val (r, c) = positions[i]
-                                newGrid[r][c] = slidDiagonal[i]
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return if (changed) {
-            GameState(newGrid, newScore).spawnRandomTile()
+        return if (newGridC != gridC) {
+            // Convert back to main grid and update B
+            val newGrid = convertCToMain(newGridC)
+            val newGridB = convertMainToB(newGrid)
+            val updated = GameState(newGrid, newGridB, newGridC, newScore)
+            if (spawn) updated.spawnRandomTile() else updated
         } else {
             this
         }
@@ -299,306 +257,116 @@ data class GameState(
         return Pair(result, score)
     }
 
-    // Diagonal extraction functions for triangular grid
-    // Based on the triangular tessellation pattern where nodes connect in specific patterns
-
-    private fun extractDiagonalTopRight(startRow: Int, startCol: Int): List<Int> {
-        val diagonal = mutableListOf<Int>()
-        var row = startRow
-        var col = startCol
-        var moveToSameRow = true
-
-        diagonal.add(grid[row][col])
-
-        while (true) {
-            if (moveToSameRow) {
-                // Move within same row
-                if (col % 2 == 0) {
-                    // Even index: move right
-                    col++
-                } else {
-                    // Odd index: move left
-                    col--
-                }
-
-                if (col >= 0 && col < grid[row].size) {
-                    diagonal.add(grid[row][col])
-                    moveToSameRow = false
-                } else {
-                    break
-                }
-            } else {
-                // Move to next row
-                row++
-                if (row < GRID_SIZE && col < grid[row].size) {
-                    diagonal.add(grid[row][col])
-                    moveToSameRow = true
-                } else {
-                    break
-                }
-            }
+    // Grid conversion functions
+    private fun convertMainToB(main: List<MutableList<Int>>): List<MutableList<Int>> {
+        val gridB = mutableListOf<MutableList<Int>>()
+        for (row in 0 until GRID_SIZE) {
+            val rowSize = 2 * row + 1
+            gridB.add(MutableList(rowSize) { 0 })
         }
 
-        return diagonal
+        // Mapping from main to B as provided
+        gridB[0][0] = main[3][6]
+        gridB[1][0] = main[2][4]
+        gridB[1][1] = main[3][5]
+        gridB[1][2] = main[3][4]
+        gridB[2][0] = main[1][2]
+        gridB[2][1] = main[2][3]
+        gridB[2][2] = main[2][2]
+        gridB[2][3] = main[3][3]
+        gridB[2][4] = main[3][2]
+        gridB[3][0] = main[0][0]
+        gridB[3][1] = main[1][1]
+        gridB[3][2] = main[1][0]
+        gridB[3][3] = main[2][1]
+        gridB[3][4] = main[2][0]
+        gridB[3][5] = main[3][1]
+        gridB[3][6] = main[3][0]
+
+        return gridB
     }
 
-    private fun extractDiagonalTopRightPositions(startRow: Int, startCol: Int): List<Pair<Int, Int>> {
-        val positions = mutableListOf<Pair<Int, Int>>()
-        var row = startRow
-        var col = startCol
-        var moveToSameRow = true
-
-        positions.add(row to col)
-
-        while (true) {
-            if (moveToSameRow) {
-                if (col % 2 == 0) {
-                    col++
-                } else {
-                    col--
-                }
-
-                if (col >= 0 && col < grid[row].size) {
-                    positions.add(row to col)
-                    moveToSameRow = false
-                } else {
-                    break
-                }
-            } else {
-                row++
-                if (row < GRID_SIZE && col < grid[row].size) {
-                    positions.add(row to col)
-                    moveToSameRow = true
-                } else {
-                    break
-                }
-            }
+    private fun convertMainToC(main: List<MutableList<Int>>): List<MutableList<Int>> {
+        val gridC = mutableListOf<MutableList<Int>>()
+        for (row in 0 until GRID_SIZE) {
+            val rowSize = 2 * row + 1
+            gridC.add(MutableList(rowSize) { 0 })
         }
 
-        return positions
+        // Mapping from main to C as provided
+        gridC[0][0] = main[3][0]
+        gridC[1][0] = main[3][2]
+        gridC[1][1] = main[3][1]
+        gridC[1][2] = main[2][0]
+        gridC[2][0] = main[3][4]
+        gridC[2][1] = main[3][3]
+        gridC[2][2] = main[2][2]
+        gridC[2][3] = main[2][1]
+        gridC[2][4] = main[1][0]
+        gridC[3][0] = main[3][6]
+        gridC[3][1] = main[3][5]
+        gridC[3][2] = main[2][4]
+        gridC[3][3] = main[2][3]
+        gridC[3][4] = main[1][2]
+        gridC[3][5] = main[1][1]
+        gridC[3][6] = main[0][0]
+
+        return gridC
     }
 
-    private fun extractDiagonalTopLeft(startRow: Int, startCol: Int): List<Int> {
-        val diagonal = mutableListOf<Int>()
-        var row = startRow
-        var col = startCol
-        var moveToSameRow = true
-
-        diagonal.add(grid[row][col])
-
-        while (true) {
-            if (moveToSameRow) {
-                // Move within same row - opposite of TopRight
-                if (col % 2 == 0) {
-                    // Even index: move left
-                    col--
-                } else {
-                    // Odd index: move right
-                    col++
-                }
-
-                if (col >= 0 && col < grid[row].size) {
-                    diagonal.add(grid[row][col])
-                    moveToSameRow = false
-                } else {
-                    break
-                }
-            } else {
-                // Move to next row
-                row++
-                if (row < GRID_SIZE && col < grid[row].size) {
-                    diagonal.add(grid[row][col])
-                    moveToSameRow = true
-                } else {
-                    break
-                }
-            }
+    private fun convertBToMain(b: List<MutableList<Int>>): List<MutableList<Int>> {
+        val main = mutableListOf<MutableList<Int>>()
+        for (row in 0 until GRID_SIZE) {
+            val rowSize = 2 * row + 1
+            main.add(MutableList(rowSize) { 0 })
         }
 
-        return diagonal
+        // Reverse mapping from B to main
+        main[3][6] = b[0][0]
+        main[2][4] = b[1][0]
+        main[3][5] = b[1][1]
+        main[3][4] = b[1][2]
+        main[1][2] = b[2][0]
+        main[2][3] = b[2][1]
+        main[2][2] = b[2][2]
+        main[3][3] = b[2][3]
+        main[3][2] = b[2][4]
+        main[0][0] = b[3][0]
+        main[1][1] = b[3][1]
+        main[1][0] = b[3][2]
+        main[2][1] = b[3][3]
+        main[2][0] = b[3][4]
+        main[3][1] = b[3][5]
+        main[3][0] = b[3][6]
+
+        return main
     }
 
-    private fun extractDiagonalTopLeftPositions(startRow: Int, startCol: Int): List<Pair<Int, Int>> {
-        val positions = mutableListOf<Pair<Int, Int>>()
-        var row = startRow
-        var col = startCol
-        var moveToSameRow = true
-
-        positions.add(row to col)
-
-        while (true) {
-            if (moveToSameRow) {
-                if (col % 2 == 0) {
-                    col--
-                } else {
-                    col++
-                }
-
-                if (col >= 0 && col < grid[row].size) {
-                    positions.add(row to col)
-                    moveToSameRow = false
-                } else {
-                    break
-                }
-            } else {
-                row++
-                if (row < GRID_SIZE && col < grid[row].size) {
-                    positions.add(row to col)
-                    moveToSameRow = true
-                } else {
-                    break
-                }
-            }
+    private fun convertCToMain(c: List<MutableList<Int>>): List<MutableList<Int>> {
+        val main = mutableListOf<MutableList<Int>>()
+        for (row in 0 until GRID_SIZE) {
+            val rowSize = 2 * row + 1
+            main.add(MutableList(rowSize) { 0 })
         }
 
-        return positions
-    }
+        // Reverse mapping from C to main
+        main[3][0] = c[0][0]
+        main[3][2] = c[1][0]
+        main[3][1] = c[1][1]
+        main[2][0] = c[1][2]
+        main[3][4] = c[2][0]
+        main[3][3] = c[2][1]
+        main[2][2] = c[2][2]
+        main[2][1] = c[2][3]
+        main[1][0] = c[2][4]
+        main[3][6] = c[3][0]
+        main[3][5] = c[3][1]
+        main[2][4] = c[3][2]
+        main[2][3] = c[3][3]
+        main[1][2] = c[3][4]
+        main[1][1] = c[3][5]
+        main[0][0] = c[3][6]
 
-    private fun extractDiagonalBottomRight(startRow: Int, startCol: Int): List<Int> {
-        val diagonal = mutableListOf<Int>()
-        var row = startRow
-        var col = startCol
-        var moveToSameRow = true
-
-        diagonal.add(grid[row][col])
-
-        while (true) {
-            if (moveToSameRow) {
-                // Move within same row - same as TopRight but going up
-                if (col % 2 == 0) {
-                    col++
-                } else {
-                    col--
-                }
-
-                if (col >= 0 && col < grid[row].size) {
-                    diagonal.add(grid[row][col])
-                    moveToSameRow = false
-                } else {
-                    break
-                }
-            } else {
-                // Move to previous row
-                row--
-                if (row >= 0 && col < grid[row].size) {
-                    diagonal.add(grid[row][col])
-                    moveToSameRow = true
-                } else {
-                    break
-                }
-            }
-        }
-
-        return diagonal
-    }
-
-    private fun extractDiagonalBottomRightPositions(startRow: Int, startCol: Int): List<Pair<Int, Int>> {
-        val positions = mutableListOf<Pair<Int, Int>>()
-        var row = startRow
-        var col = startCol
-        var moveToSameRow = true
-
-        positions.add(row to col)
-
-        while (true) {
-            if (moveToSameRow) {
-                if (col % 2 == 0) {
-                    col++
-                } else {
-                    col--
-                }
-
-                if (col >= 0 && col < grid[row].size) {
-                    positions.add(row to col)
-                    moveToSameRow = false
-                } else {
-                    break
-                }
-            } else {
-                row--
-                if (row >= 0 && col < grid[row].size) {
-                    positions.add(row to col)
-                    moveToSameRow = true
-                } else {
-                    break
-                }
-            }
-        }
-
-        return positions
-    }
-
-    private fun extractDiagonalBottomLeft(startRow: Int, startCol: Int): List<Int> {
-        val diagonal = mutableListOf<Int>()
-        var row = startRow
-        var col = startCol
-        var moveToSameRow = true
-
-        diagonal.add(grid[row][col])
-
-        while (true) {
-            if (moveToSameRow) {
-                // Move within same row - same as TopLeft but going up
-                if (col % 2 == 0) {
-                    col--
-                } else {
-                    col++
-                }
-
-                if (col >= 0 && col < grid[row].size) {
-                    diagonal.add(grid[row][col])
-                    moveToSameRow = false
-                } else {
-                    break
-                }
-            } else {
-                // Move to previous row
-                row--
-                if (row >= 0 && col < grid[row].size) {
-                    diagonal.add(grid[row][col])
-                    moveToSameRow = true
-                } else {
-                    break
-                }
-            }
-        }
-
-        return diagonal
-    }
-
-    private fun extractDiagonalBottomLeftPositions(startRow: Int, startCol: Int): List<Pair<Int, Int>> {
-        val positions = mutableListOf<Pair<Int, Int>>()
-        var row = startRow
-        var col = startCol
-        var moveToSameRow = true
-
-        positions.add(row to col)
-
-        while (true) {
-            if (moveToSameRow) {
-                if (col % 2 == 0) {
-                    col--
-                } else {
-                    col++
-                }
-
-                if (col >= 0 && col < grid[row].size) {
-                    positions.add(row to col)
-                    moveToSameRow = false
-                } else {
-                    break
-                }
-            } else {
-                row--
-                if (row >= 0 && col < grid[row].size) {
-                    positions.add(row to col)
-                    moveToSameRow = true
-                } else {
-                    break
-                }
-            }
-        }
-
-        return positions
+        return main
     }
 }

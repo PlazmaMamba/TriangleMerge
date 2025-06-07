@@ -27,23 +27,21 @@ enum class SwipeDirection {
 @Composable
 fun GameScreen(modifier: Modifier = Modifier) {
     var gameState by remember { mutableStateOf(GameState.initial()) }
+    var spawnEnabled by remember { mutableStateOf(true) }
 
     fun handleSwipe(direction: SwipeDirection) {
-        gameState = when (direction) {
-            SwipeDirection.LEFT -> gameState.slideLeft()
-            SwipeDirection.RIGHT -> gameState.slideRight()
-            SwipeDirection.TOP_LEFT -> gameState.slideTopLeft()
-            SwipeDirection.TOP_RIGHT -> gameState.slideTopRight()
-            SwipeDirection.BOTTOM_LEFT -> gameState.slideBottomLeft()
-            SwipeDirection.BOTTOM_RIGHT -> gameState.slideBottomRight()
+        val updated = when (direction) {
+            SwipeDirection.LEFT -> gameState.slideLeft(spawnEnabled)
+            SwipeDirection.RIGHT -> gameState.slideRight(spawnEnabled)
+            SwipeDirection.TOP_LEFT -> gameState.slideTopLeft(spawnEnabled)
+            SwipeDirection.TOP_RIGHT -> gameState.slideTopRight(spawnEnabled)
+            SwipeDirection.BOTTOM_LEFT -> gameState.slideBottomLeft(spawnEnabled)
+            SwipeDirection.BOTTOM_RIGHT -> gameState.slideBottomRight(spawnEnabled)
         }
+        gameState = updated
     }
 
-    // Calculate the aspect ratio for the triangular grid
-    // The grid forms a roughly hexagonal shape when fully populated
-    // For equilateral triangles in a tessellation pattern with GRID_SIZE rows
-    // The aspect ratio should be close to 1.0 but slightly wider
-    val aspectRatio = 1.15f // Slightly wider than square to accommodate the hexagonal shape
+    val aspectRatio = 1.15f
 
     Column(
         modifier = modifier
@@ -52,7 +50,6 @@ fun GameScreen(modifier: Modifier = Modifier) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Title
         Text(
             text = "Triangle 2048",
             style = MaterialTheme.typography.headlineLarge,
@@ -61,7 +58,6 @@ fun GameScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(vertical = 8.dp)
         )
 
-        // Score
         Card(
             modifier = Modifier
                 .padding(vertical = 4.dp)
@@ -77,7 +73,6 @@ fun GameScreen(modifier: Modifier = Modifier) {
             )
         }
 
-        // Game Grid with gesture detection - Takes up maximum available space
         Box(
             modifier = Modifier
                 .weight(0.5f)
@@ -91,89 +86,60 @@ fun GameScreen(modifier: Modifier = Modifier) {
                     .fillMaxWidth()
                     .aspectRatio(aspectRatio)
                     .pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragEnd = {
-                                // Handle drag end if needed
-                            }
-                        ) { change, dragAmount ->
+                        detectDragGestures(onDragEnd = {}) { _, dragAmount ->
                             val (dx, dy) = dragAmount
                             val threshold = 50f
-
                             if (abs(dx) > threshold || abs(dy) > threshold) {
-                                val direction = getSwipeDirection(dx, dy)
-                                direction?.let { handleSwipe(it) }
+                                getSwipeDirection(dx, dy)?.let { handleSwipe(it) }
                             }
                         }
                     }
             )
         }
 
-        // Bottom controls
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(vertical = 8.dp)
         ) {
-            // Direction buttons for testing/accessibility
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(4.dp)
-            ) {
-                Button(
-                    onClick = { handleSwipe(SwipeDirection.TOP_LEFT) },
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(4.dp)) {
+                Button(onClick = { handleSwipe(SwipeDirection.TOP_LEFT) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("↖", color = Color.White)
                 }
-                Button(
-                    onClick = { handleSwipe(SwipeDirection.LEFT) },
+                Button(onClick = { handleSwipe(SwipeDirection.LEFT) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("←", color = Color.White)
                 }
-                Button(
-                    onClick = { handleSwipe(SwipeDirection.TOP_RIGHT) },
+                Button(onClick = { handleSwipe(SwipeDirection.TOP_RIGHT) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("↗", color = Color.White)
                 }
             }
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(4.dp)
-            ) {
-                Button(
-                    onClick = { handleSwipe(SwipeDirection.BOTTOM_LEFT) },
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(4.dp)) {
+                Button(onClick = { handleSwipe(SwipeDirection.BOTTOM_LEFT) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("↙", color = Color.White)
                 }
-                Button(
-                    onClick = { handleSwipe(SwipeDirection.RIGHT) },
+                Button(onClick = { handleSwipe(SwipeDirection.RIGHT) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("→", color = Color.White)
                 }
-                Button(
-                    onClick = { handleSwipe(SwipeDirection.BOTTOM_RIGHT) },
+                Button(onClick = { handleSwipe(SwipeDirection.BOTTOM_RIGHT) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("↘", color = Color.White)
                 }
             }
 
-            // New Game Button
-            Button(
-                onClick = { gameState = GameState.initial() },
+            Button(onClick = { gameState = GameState.initial() },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                modifier = Modifier.padding(vertical = 4.dp)
-            ) {
+                modifier = Modifier.padding(vertical = 4.dp)) {
                 Text(
                     text = "New Game",
                     color = Color.White,
@@ -182,7 +148,11 @@ fun GameScreen(modifier: Modifier = Modifier) {
                 )
             }
 
-            // Game Over Message
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                Text("Spawn Tiles", color = Color.DarkGray, modifier = Modifier.padding(end = 8.dp))
+                Switch(checked = spawnEnabled, onCheckedChange = { spawnEnabled = it })
+            }
+
             if (gameState.isGameOver) {
                 Card(
                     modifier = Modifier
@@ -207,7 +177,6 @@ fun GameScreen(modifier: Modifier = Modifier) {
 fun getSwipeDirection(dx: Float, dy: Float): SwipeDirection? {
     val angle = atan2(dy, dx) * 180 / PI
     val normalizedAngle = if (angle < 0) angle + 360 else angle
-
     return when (normalizedAngle) {
         in 0.0..30.0, in 330.0..360.0 -> SwipeDirection.RIGHT
         in 30.0..90.0 -> SwipeDirection.BOTTOM_RIGHT

@@ -5,18 +5,18 @@ import androidx.compose.ui.graphics.Color
 object TileColors {
     fun getTileColor(value: Int): Color {
         return when (value) {
-            0 -> Color(0xFFCDC1B4)
-            2 -> Color(0xFFEEE4DA)
-            4 -> Color(0xFFEDE0C8)
-            8 -> Color(0xFFF2B179)
-            16 -> Color(0xFFF59563)
-            32 -> Color(0xFFF67C5F)
-            64 -> Color(0xFFF65E3B)
-            128 -> Color(0xFFEDCF72)
-            256 -> Color(0xFFEDCC61)
-            512 -> Color(0xFFEDC850)
-            1024 -> Color(0xFFEDC53F)
-            2048 -> Color(0xFFEDC22E)
+            0 -> Color(0xFFFFFFFF)
+            2 -> Color(0xFFE91E63)
+            4 -> Color(0xFF9C27B0)
+            8 -> Color(0xFF673AB7)
+            16 -> Color(0xFF3F51B5)
+            32 -> Color(0xFF2196F3)
+            64 -> Color(0xFF03A9F4)
+            128 -> Color(0xFF00BCD4)
+            256 -> Color(0xFF009688)
+            512 -> Color(0xFF4CAF50)
+            1024 -> Color(0xFF8BC34A)
+            2048 -> Color(0xFFCDDC39)
             else -> Color(0xFF3C3A32)
         }
     }
