@@ -51,7 +51,7 @@ fun GameScreen(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Triangle 2048",
+            text = "Triangle Merge",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
             color = Color(0xFF776E65),
