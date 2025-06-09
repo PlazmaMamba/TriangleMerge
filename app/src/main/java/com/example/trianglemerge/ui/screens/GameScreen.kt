@@ -1,5 +1,7 @@
 package com.example.trianglemerge.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -11,11 +13,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.trianglemerge.data.GamePreferences
 import com.example.trianglemerge.model.GameState
 import com.example.trianglemerge.ui.components.TriangularGrid
+import com.example.trianglemerge.ui.components.GameOverScreen
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -24,12 +29,40 @@ enum class SwipeDirection {
     LEFT, RIGHT, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT
 }
 
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun GameScreen(modifier: Modifier = Modifier) {
-    var gameState by remember { mutableStateOf(GameState.initial()) }
+    val context = LocalContext.current
+    val gamePrefs = remember { GamePreferences(context) }
+
+    var gameState by remember {
+        mutableStateOf(
+            gamePrefs.loadGame() ?: GameState.initial()
+        )
+    }
     var spawnEnabled by remember { mutableStateOf(true) }
+    var highScore by remember { mutableStateOf(gamePrefs.getHighScore()) }
+    var showNewGameDialog by remember { mutableStateOf(false) }
+    val isNewHighScore = gameState.isGameOver && gameState.score == highScore && gameState.score > 0
+
+    // Auto-save game state whenever it changes
+    LaunchedEffect(gameState) {
+        if (!gameState.isGameOver) {
+            gamePrefs.saveGame(gameState)
+        } else {
+            // Clear saved game when game is over
+            gamePrefs.clearSavedGame()
+        }
+        // Update high score
+        if (gameState.score > highScore) {
+            highScore = gameState.score
+            gamePrefs.updateHighScore(gameState.score)
+        }
+    }
 
     fun handleSwipe(direction: SwipeDirection) {
+        if (gameState.isGameOver) return // Prevent moves when game is over
+
         val updated = when (direction) {
             SwipeDirection.LEFT -> gameState.slideLeft(spawnEnabled)
             SwipeDirection.RIGHT -> gameState.slideRight(spawnEnabled)
@@ -41,7 +74,31 @@ fun GameScreen(modifier: Modifier = Modifier) {
         gameState = updated
     }
 
+    fun startNewGame() {
+        gameState = GameState.initial()
+        gamePrefs.clearSavedGame()
+        showNewGameDialog = false
+    }
+
     val aspectRatio = 1.15f
+
+    if (showNewGameDialog && !gameState.isGameOver) {
+        AlertDialog(
+            onDismissRequest = { showNewGameDialog = false },
+            title = { Text("Start New Game?") },
+            text = { Text("You have a game in progress. Starting a new game will lose your current progress.") },
+            confirmButton = {
+                TextButton(onClick = { startNewGame() }) {
+                    Text("New Game")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewGameDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Column(
         modifier = modifier
@@ -58,25 +115,78 @@ fun GameScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(vertical = 8.dp)
         )
 
-        Card(
-            modifier = Modifier
-                .padding(vertical = 4.dp)
-                .clip(RoundedCornerShape(8.dp)),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFBBADA0))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(vertical = 4.dp)
         ) {
-            Text(
-                text = "Score: ${gameState.score}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
-            )
+            Card(
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFBBADA0))
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "SCORE",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFEEE4DA)
+                    )
+                    Text(
+                        text = "${gameState.score}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Card(
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFBBADA0))
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "BEST",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFEEE4DA)
+                    )
+                    Text(
+                        text = "$highScore",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
         }
+
+        // Animated size for the triangle grid
+        val gridSizeAnimation by animateFloatAsState(
+            targetValue = if (gameState.isGameOver) 0.3f else 0.5f,
+            animationSpec = tween(
+                durationMillis = 600,
+                easing = FastOutSlowInEasing
+            )
+        )
+
+        val gridWidthAnimation by animateFloatAsState(
+            targetValue = if (gameState.isGameOver) 0.5f else 0.75f,
+            animationSpec = tween(
+                durationMillis = 600,
+                easing = FastOutSlowInEasing
+            )
+        )
 
         Box(
             modifier = Modifier
-                .weight(0.5f)
-                .fillMaxWidth(0.75f)
+                .weight(gridSizeAnimation)
+                .fillMaxWidth(gridWidthAnimation)
                 .padding(vertical = 8.dp, horizontal = 8.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -97,77 +207,126 @@ fun GameScreen(modifier: Modifier = Modifier) {
             )
         }
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(vertical = 8.dp)
+        // Controls/Game Over section with animation
+        Box(
+            modifier = Modifier.weight(1f - gridSizeAnimation)
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(4.dp)) {
-                Button(onClick = { handleSwipe(SwipeDirection.TOP_LEFT) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("↖", color = Color.White)
+            AnimatedContent(
+                targetState = gameState.isGameOver,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(300, delayMillis = 300)) +
+                            slideInVertically(animationSpec = tween(300, delayMillis = 300)) with
+                            fadeOut(animationSpec = tween(300)) +
+                            slideOutVertically(animationSpec = tween(300))
                 }
-                Button(onClick = { handleSwipe(SwipeDirection.LEFT) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("←", color = Color.White)
-                }
-                Button(onClick = { handleSwipe(SwipeDirection.TOP_RIGHT) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("↗", color = Color.White)
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(4.dp)) {
-                Button(onClick = { handleSwipe(SwipeDirection.BOTTOM_LEFT) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("↙", color = Color.White)
-                }
-                Button(onClick = { handleSwipe(SwipeDirection.RIGHT) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("→", color = Color.White)
-                }
-                Button(onClick = { handleSwipe(SwipeDirection.BOTTOM_RIGHT) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("↘", color = Color.White)
-                }
-            }
-
-            Button(onClick = { gameState = GameState.initial() },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
-                modifier = Modifier.padding(vertical = 4.dp)) {
-                Text(
-                    text = "New Game",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                Text("Spawn Tiles", color = Color.DarkGray, modifier = Modifier.padding(end = 8.dp))
-                Switch(checked = spawnEnabled, onCheckedChange = { spawnEnabled = it })
-            }
-
-            if (gameState.isGameOver) {
-                Card(
-                    modifier = Modifier
-                        .padding(top = 8.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEDC22E))
-                ) {
-                    Text(
-                        text = "Game Over!",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(16.dp)
+            ) { isGameOver ->
+                if (isGameOver) {
+                    // Game Over screen with stats
+                    GameOverScreen(
+                        finalScore = gameState.score,
+                        highScore = highScore,
+                        gameStats = gameState.stats,
+                        isNewHighScore = isNewHighScore,
+                        onNewGame = { startNewGame() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
                     )
+                } else {
+                    // Normal controls
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        ) {
+                            Spacer(modifier = Modifier.width(32.dp))
+                            Button(
+                                onClick = { handleSwipe(SwipeDirection.TOP_LEFT) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Text("↖", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                            }
+                            Button(
+                                onClick = { handleSwipe(SwipeDirection.TOP_RIGHT) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Text("↗", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                            }
+                            Spacer(modifier = Modifier.width(32.dp))
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(vertical = 0.dp)
+                        ) {
+                            Button(
+                                onClick = { handleSwipe(SwipeDirection.LEFT) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Text("←", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                            }
+                            Spacer(modifier = Modifier.size(56.dp))
+                            Button(
+                                onClick = { handleSwipe(SwipeDirection.RIGHT) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Text("→", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Spacer(modifier = Modifier.width(32.dp))
+                            Button(
+                                onClick = { handleSwipe(SwipeDirection.BOTTOM_LEFT) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Text("↙", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                            }
+                            Button(
+                                onClick = { handleSwipe(SwipeDirection.BOTTOM_RIGHT) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Text("↘", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                            }
+                            Spacer(modifier = Modifier.width(32.dp))
+                        }
+
+                        Button(
+                            onClick = { showNewGameDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8F7A66)),
+                            modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
+                        ) {
+                            Text(
+                                text = "New Game",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                            Text("Spawn Tiles", color = Color.DarkGray, modifier = Modifier.padding(end = 8.dp))
+                            Switch(checked = spawnEnabled, onCheckedChange = { spawnEnabled = it })
+                        }
+                    }
                 }
             }
         }

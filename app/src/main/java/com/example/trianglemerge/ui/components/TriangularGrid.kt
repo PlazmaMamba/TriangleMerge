@@ -1,8 +1,8 @@
-// TriangularGrid.kt
 package com.example.trianglemerge.ui.components
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -21,6 +21,26 @@ fun TriangularGrid(
     gameState: GameState,
     modifier: Modifier = Modifier
 ) {
+    // Animation for the new tile highlight
+    val infiniteTransition = rememberInfiniteTransition()
+    val highlightAnimation by infiniteTransition.animateFloat(
+        initialValue = 3f,
+        targetValue = 6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
+    val glowAnimation by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
     Canvas(modifier = modifier) {
         val canvasWidth = size.width
         val canvasHeight = size.height
@@ -31,9 +51,6 @@ fun TriangularGrid(
         val maxRowWidth = totalRows // Maximum number of triangles in bottom row
 
         // Calculate triangle side length based on available width
-        // For a proper tessellation, we need to account for the fact that
-        // triangles share edges and the row width is not simply triangleSize * count
-        // The actual width of n triangles in a row is: (n + 1) * triangleSize / 2
         val triangleSize = (canvasWidth * 0.9f * 2) / (maxRowWidth + 1)
 
         // Triangle height for equilateral triangles
@@ -52,7 +69,6 @@ fun TriangularGrid(
             val y = startY + row * rowVerticalSpacing
 
             // Calculate starting X position for this row to center it
-            // In a tessellated pattern, horizontal spacing between centers is triangleSize/2
             val rowWidth = (rowCells.size - 1) * triangleSize / 2
             val startX = centerX - rowWidth / 2
 
@@ -62,12 +78,16 @@ fun TriangularGrid(
                 val x = startX + col * triangleSize / 2
                 val value = rowCells[col]
                 val isUpward = gameState.isTriangleUpward(row, col)
+                val isNewTile = gameState.lastSpawnedPosition == (row to col)
 
                 drawTriangleCell(
                     center = Offset(x, y),
                     size = triangleSize,
                     value = value,
-                    isUpward = isUpward
+                    isUpward = isUpward,
+                    isNewTile = isNewTile,
+                    highlightWidth = highlightAnimation,
+                    glowAlpha = glowAnimation
                 )
             }
         }
@@ -78,7 +98,10 @@ fun DrawScope.drawTriangleCell(
     center: Offset,
     size: Float,
     value: Int,
-    isUpward: Boolean
+    isUpward: Boolean,
+    isNewTile: Boolean = false,
+    highlightWidth: Float = 3f,
+    glowAlpha: Float = 0.5f
 ) {
     val height = size * sqrt(3f) / 2f
     val halfSize = size / 2f
@@ -100,12 +123,30 @@ fun DrawScope.drawTriangleCell(
     }
 
     // Draw triangle background (filled)
+    val tileColor = TileColors.getTileColor(value)
     drawPath(
         path = path,
-        color = TileColors.getTileColor(value)
+        color = tileColor
     )
 
-    // Draw black border around triangle
+    // Draw special effects for new tile
+    if (isNewTile && value > 0) {
+        // Draw glowing effect
+        drawPath(
+            path = path,
+            color = Color(0xFFFFD700).copy(alpha = glowAlpha),
+            style = Stroke(width = highlightWidth.dp.toPx())
+        )
+
+        // Draw animated border
+        drawPath(
+            path = path,
+            color = Color(0xFFFFD700),
+            style = Stroke(width = highlightWidth.dp.toPx())
+        )
+    }
+
+    // Draw standard black border
     drawPath(
         path = path,
         color = Color.Black,
