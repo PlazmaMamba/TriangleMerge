@@ -19,7 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.trianglemerge.data.GamePreferences
 import com.example.trianglemerge.model.GameState
-import com.example.trianglemerge.ui.components.TriangularGrid
+import com.example.trianglemerge.ui.components.AnimatedTriangularGrid
 import com.example.trianglemerge.ui.components.GameOverScreen
 import kotlin.math.PI
 import kotlin.math.abs
@@ -43,6 +43,7 @@ fun GameScreen(modifier: Modifier = Modifier) {
     var spawnEnabled by remember { mutableStateOf(true) }
     var highScore by remember { mutableStateOf(gamePrefs.getHighScore()) }
     var showNewGameDialog by remember { mutableStateOf(false) }
+    var lastSwipeDirection by remember { mutableStateOf<SwipeDirection?>(null) }
     val isNewHighScore = gameState.isGameOver && gameState.score == highScore && gameState.score > 0
 
     // Auto-save game state whenever it changes
@@ -63,6 +64,7 @@ fun GameScreen(modifier: Modifier = Modifier) {
     fun handleSwipe(direction: SwipeDirection) {
         if (gameState.isGameOver) return // Prevent moves when game is over
 
+        lastSwipeDirection = direction
         val updated = when (direction) {
             SwipeDirection.LEFT -> gameState.slideLeft(spawnEnabled)
             SwipeDirection.RIGHT -> gameState.slideRight(spawnEnabled)
@@ -190,7 +192,7 @@ fun GameScreen(modifier: Modifier = Modifier) {
                 .padding(vertical = 8.dp, horizontal = 8.dp),
             contentAlignment = Alignment.Center
         ) {
-            TriangularGrid(
+            AnimatedTriangularGrid(
                 gameState = gameState,
                 modifier = Modifier
                     .fillMaxWidth()
