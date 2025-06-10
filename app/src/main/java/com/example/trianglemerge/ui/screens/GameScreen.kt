@@ -16,6 +16,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.trianglemerge.data.GamePreferences
 import com.example.trianglemerge.model.GameState
@@ -346,3 +347,4 @@ fun getSwipeDirection(dx: Float, dy: Float): SwipeDirection? {
         else -> null
     }
 }
+
